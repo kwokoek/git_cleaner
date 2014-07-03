@@ -1,0 +1,14 @@
+{
+  "name": "git_cleaner",
+  "version": "0.0.0",
+  "description": "Node wrapped git cleanup tool",
+  "main": "git_cleaner.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Karsten Wokoek <kwokoek@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^0.9.0"
+  }
+}
