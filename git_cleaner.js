@@ -1,4 +1,13 @@
+/*
+ * Helper utility to help clean repositories which many 'dead' branches.
+ *
+ * All the branches for the target repo are pulled, sorted to show oldest branches first, and then
+ * cycle the branches to the user.
+ *
+ * The user can then delete the branch, or skip it, and continue.
+ */
 var util = require('util'),
+  fs = require('fs'),
   child_process = require('child_process'),
   readline = require('readline'),
   async = require('async');
@@ -33,6 +42,7 @@ function parse_branch(branch_info,callback) {
     return callback(branch_parse_fail(branch_info ,"Unable to parse out remote and branch"));
   }
 
+  // Wrap up the parse info for easy consumption
   var branch = {
     git_remote:git_remote,
     git_branch:git_branch,
@@ -92,17 +102,23 @@ function branch_cycle(git_logs) {
 }
 
 // Cleaning entry point
-function clean_driver() {
+function launchCleaner(target_path) {
 
-  child_process.exec('cd ~/glg/node-cmp; gs',
+  child_process.exec('./show_git_branches.sh '+target_path,
    function (error, stdout, stderr) {
 
      if(stderr || error) {
        util.log("Exiting with git log retrieval error");
-       console.log('stderr: ' + stderr);
+       console.error('stderr: ' + stderr);
        if (error !== null) {
-         console.log('exec error: ' + error);
+         console.error('exec error: ' + error);
        }
+       return;
+     }
+
+     // If there is no stdout, that means there is no git repo at the target path
+     if(!stdout) {
+       console.error("\nNo git repository found at path",target_path);
        return;
      }
 
@@ -112,5 +128,24 @@ function clean_driver() {
 
 }
 
-clean_driver();
+function cleanDriver() {
+  if(process.argv.length != 3) {
+    console.error("\nMissing target git repository");
+    console.error("Usage : node git_cleaner PATH_TO_FOLDER_TO_CLEAN\n");
+    return;
+  }
+
+  var target_path = process.argv[2];
+  if(!fs.existsSync(target_path)) {
+    console.error("\nTarget folder to clean must exist. Was passed:",target_path);
+    return;
+  }
+  if(!fs.lstatSync(target_path).isDirectory()) {
+    console.error("\nTarget must be a folder. Was passed:",target_path);
+    return;
+  }
+  launchCleaner(target_path);
+}
+
+cleanDriver();
 
