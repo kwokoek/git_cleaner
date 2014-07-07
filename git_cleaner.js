@@ -21,25 +21,25 @@ var BRANCH_MARKER = "[[branch]]";
 //
 // Return a wrapper holding the orig info, and the remote/branch pair
 //
-function parse_branch(branch_info,callback) {
+function parseBranch(branch_info,callback) {
   var branch_split_idx = branch_info.indexOf(BRANCH_MARKER);
   if(branch_split_idx === -1) {
-    return callback("Log entry missing branch marker",BRANCH_MARKER,"on log entry",branch_info);
+    return callback("Log entry missing branch marker "+BRANCH_MARKER+ " on log entry "+branch_info);
   }
 
   var branch_split = branch_info.substring(branch_split_idx + BRANCH_MARKER.length).trim();
   if(!branch_split) {
-    return callback(branch_parse_fail(branch_info , "No branch delimiter found"));
+    return callback(branchParseFail(branch_info , "No branch delimiter found"));
   }
   var remote_split_idx = branch_split.indexOf("/");
   if(remote_split_idx === -1) {
-    return callback(branch_parse_fail(branch_info ,"No remote branch split found"));
+    return callback(branchParseFail(branch_info ,"No remote branch split found"));
   }
 
   var git_remote = branch_split.substring(0,remote_split_idx);
   var git_branch = branch_split.substring(remote_split_idx + 1);
   if(!git_remote || !git_branch) {
-    return callback(branch_parse_fail(branch_info ,"Unable to parse out remote and branch"));
+    return callback(branchParseFail(branch_info ,"Unable to parse out remote and branch"));
   }
 
   // Wrap up the parse info for easy consumption
@@ -53,51 +53,100 @@ function parse_branch(branch_info,callback) {
 }
 
 // helper to capture a common log format
-function branch_parse_fail(branch_info,reason) {
+function branchParseFail(branch_info,reason) {
   return "Unable to parse branch information from branch ("+reason+") "+branch_info;
 }
 
+// Helper wrapper to run the passed in command
+// On success, callback will be sent the cmd run
+function runShellCommand(target_path,command,callback) {
+  var cmd = util.format("cd %s;%s",target_path,command);
+  child_process.exec(cmd,
+   function (error, stdout, stderr) {
+
+     if(stderr || error) {
+       console.log('stderr: ' + stderr);
+       if (error !== null) {
+         console.log('exec error: ' + error);
+       }
+       var msg = "FAILURE running shell command:"+cmd;
+       return callback(msg);
+     }
+
+     console.log("OK: "+cmd);
+     callback(null,cmd);
+   });
+}
+
+// Confirm deletion as this is permanent! Then run actual delete.
+function confirmDelete(target_path,branch,callback) {
+  var rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  var run_this = util.format("git push --porcelain %s :%s",branch.git_remote,branch.git_branch);
+
+  rl.question("Run this cmd '"+run_this+"' ? (yes/no) ", function(answer) {
+    rl.close();
+    if(answer === "yes" || answer === "y") {
+      return runShellCommand(target_path,run_this,callback);
+    } 
+
+    console.log("Skipping",branch.git_branch);
+    callback();
+  });
+
+}
 // Handle the processing of the list of git log entries, and run through the options per branch
-function branch_cycle(git_logs) {
+function branchCycle(target_path,git_logs,main_callback) {
+  var runStats = {
+    branch_count:0,
+    delete_count:0
+  };
+
   // using async series for our readline interaction on a per entry basis
   async.eachSeries(git_logs, function(git_log_entry,callback) {
     if(!git_log_entry) {
-      callback();
+      return callback();
     }
 
-    parse_branch(git_log_entry,function(err,branch) {
+    runStats.branch_count += 1;
+    parseBranch(git_log_entry,function(err,branch) {
+      if(err) {
+        return callback(err);
+      }
 
-      console.log("\n",branch.branch_info);
+      console.log("\n\n");
+      console.log(branch.branch_info.trim(),"\n");
+      var branch_target = branch.git_remote+"/"+branch.git_branch;
       var rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
       });
 
-      var branch_target = branch.git_remote+"/"+branch.git_branch;
-
       rl.question("Delete branch "+branch_target+"? (yes/no/exit) ", function(answer) {
         rl.close();
 
-        if(answer === "yes") {
-          console.log("Deleting",branch_target);
+        if(answer === "yes" || answer === "y") {
+          return confirmDelete(target_path,branch,function(err,cmd_run) {
+            if(cmd_run) {
+              runStats.delete_count += 1;
+            }
+
+            callback(err);
+          });
         } else if(answer === "exit" || answer === "x") {
           return callback("User Exit");
-        } else {
-          console.log("Skipping",branch_target);
-        }
+        } 
 
+        console.log("Skipping",branch.git_branch);
         callback();
       });
       
     });
   }, function(err){
-    if( err ) {
-      var msg = 'Git log processing failure: '+util.inspect(err);
-      console.log();
-      util.log(msg);
-      console.log();
-      return;
-    }
+    main_callback(err,runStats);
   });
 }
 
@@ -123,7 +172,21 @@ function launchCleaner(target_path) {
      }
 
      var git_logs = stdout.split(/\r\n|\r|\n/g);
-     branch_cycle(git_logs);
+     branchCycle(target_path,git_logs,function(err,run_stats) {
+    
+       // Cleaner could have already completed some operations, show stats
+       if(run_stats) {
+         console.log();
+         util.log("Total number branches processed: "+run_stats.branch_count);
+         util.log("Number of branches deleted: "+run_stats.delete_count);
+         console.log();
+         console.log();
+       }
+
+       if(err) {
+         util.log("Git clean processing failure - "+util.inspect(err));
+       }
+     });
    });
 
 }
