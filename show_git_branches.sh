@@ -11,4 +11,6 @@ if [ "$#" -ne 1 ]; then
 fi
 
 cd $1
+# fetch latest, but eat the output
+git fetch &> /dev/null
 for k in $(git branch -r|grep -v "\->"|sed s/^..//);do echo $(git log -1 --pretty=format:"%at %ad %cn %s" "$k")  [[branch]]  "$k";done|sort
