@@ -59,12 +59,12 @@ function branchParseFail(branch_info,reason) {
 
 // Helper wrapper to run the passed in command
 // On success, callback will be sent the cmd run
-function runShellCommand(target_path,command,callback) {
+function runShellCommand(target_path,command,ignore_errors,callback) {
   var cmd = util.format("cd %s;%s",target_path,command);
   child_process.exec(cmd,
    function (error, stdout, stderr) {
 
-     if(stderr || error) {
+     if(!ignore_errors && (stderr || error)) {
        console.log('stderr: ' + stderr);
        if (error !== null) {
          console.log('exec error: ' + error);
@@ -90,7 +90,14 @@ function confirmDelete(target_path,branch,callback) {
   rl.question("Run this cmd '"+run_this+"' ? (yes/no) ", function(answer) {
     rl.close();
     if(answer === "yes" || answer === "y") {
-      return runShellCommand(target_path,run_this,callback);
+      return runShellCommand(target_path,run_this,false,function(err,cmd) {
+        if(err) { 
+          return callback(err);
+        }
+        var local_del = util.format("git branch -D %s",branch.git_branch);
+        runShellCommand(target_path,local_del,true,callback);
+      });
+
     } 
 
     console.log("Skipping",branch.git_branch);

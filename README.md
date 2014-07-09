@@ -26,7 +26,11 @@ Each branch is shown with base information (date, author, and the last
 commit for that branch). Options are given to delete the branch, or skip it to continue to the next branch.  
 In this way you can preserve specific branches (say for a release, or an
 interesting experiment), while deleting ones that you no longer want.
-
+  
+The branch list is driven off of branches on the remote, but will also
+delete any local branch copies of them.
+   
+Pure local branches are ignored.
 
 ### Run it
 
