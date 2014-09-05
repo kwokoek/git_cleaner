@@ -80,11 +80,6 @@ function runShellCommand(target_path,command,ignore_errors,callback) {
 
 // Confirm deletion as this is permanent! Then run actual delete.
 function confirmDelete(target_path,branch,callback) {
-  var rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
   var remote_delete = util.format("git push --porcelain %s :%s",branch.git_remote,branch.git_branch);
 
   runShellCommand(target_path,remote_delete,false,function(err,cmd) {
