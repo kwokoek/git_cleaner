@@ -87,27 +87,17 @@ function confirmDelete(target_path,branch,callback) {
 
   var remote_delete = util.format("git push --porcelain %s :%s",branch.git_remote,branch.git_branch);
 
-  rl.question("Run this cmd '"+remote_delete+"' ? (yes/no) ", function(answer) {
-    rl.close();
-    if(answer === "yes" || answer === "y") {
-      return runShellCommand(target_path,remote_delete,false,function(err,cmd) {
-        if(err) { 
-          return callback(err);
-        }
-        // remote delete success, now clean up the local branch
-        // Ignore any error on this call, as a local copy may not exist
-        var local_del = util.format("git branch -D %s",branch.git_branch);
-        runShellCommand(target_path,local_del,true,callback);
-      });
-
-    } 
-
-    // Fall through - skip this branch
-    console.log("Skipping",branch.git_branch);
-    callback();
+  runShellCommand(target_path,remote_delete,false,function(err,cmd) {
+    if(err) { 
+      return callback(err);
+    }
+    // remote delete success, now clean up the local branch
+    // Ignore any error on this call, as a local copy may not exist
+    var local_del = util.format("git branch -D %s",branch.git_branch);
+    runShellCommand(target_path,local_del,true,callback);
   });
-
 }
+
 // Handle the processing of the list of git log entries, and run through the options per branch
 function branchCycle(target_path,git_logs,main_callback) {
   var runStats = {
